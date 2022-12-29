@@ -70,6 +70,33 @@ def thresholds_for_crop(crop):
     min_h, max_h = np.min(hsv,axis=(0,1)), np.max(hsv,axis=(0,1))
     return min_h, max_h
 
+def corners_to_cvbbox(box):
+    p1, p2, p3, p4 = box
+    x1, y1, x2, y2, x3, y3, x4, y4 = p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], p4[0], p4[1]
+    x_min = min(x1, x2, x3, x4)
+    y_min = min(y1, y2, y3, y4)
+    x_max = max(x1, x2, x3, x4)
+    y_max = max(y1, y2, y3, y4)
+
+    new_bbox = (x_min, y_min, x_max-x_min, y_max-y_min)
+    return new_bbox
+
+def approximate_cvbbox(box, more=5):
+    x = box[0] - more
+    y = box[1] - more
+    w = box[2] + more
+    h = box[3] + more
+
+    return (x, y, w, h)
+
+def cnt_to_cvbox(cnt):
+    rect = cv2.minAreaRect(cnt)
+    box = cv2.boxPoints(rect)
+    box = np.int0(box)
+    return corners_to_cvbbox(box)
+
+# COUNTERS
+
 def filter_for_counter(mask, lower_bound, upper_bound):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5,5)))
     
@@ -125,25 +152,6 @@ def find_counter(source_img, contours, inverse = 0):
     warped = cv2.warpPerspective(source_img, M, (width, height))
     return warped, box
 
-def corners_to_cvbbox(box):
-    p1, p2, p3, p4 = box
-    x1, y1, x2, y2, x3, y3, x4, y4 = p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], p4[0], p4[1]
-    x_min = min(x1, x2, x3, x4)
-    y_min = min(y1, y2, y3, y4)
-    x_max = max(x1, x2, x3, x4)
-    y_max = max(y1, y2, y3, y4)
-
-    new_bbox = (x_min, y_min, x_max-x_min, y_max-y_min)
-    return new_bbox
-
-def approximate_cvbbox(box, more=5):
-    x = box[0] - more
-    y = box[1] - more
-    w = box[2] + more
-    h = box[3] + more
-
-    return (x, y, w, h)
-
 def get_player_box(frame, color_crop, lower_size, upper_size, inv=0, approx=0):
     min_h, max_h = thresholds_for_crop(color_crop)
     
@@ -158,3 +166,60 @@ def get_player_box(frame, color_crop, lower_size, upper_size, inv=0, approx=0):
     final_box = approximate_cvbbox(corners_to_cvbbox(box), approx)
     
     return final_box, counter_crop
+
+# HOUSES AND BOARD
+
+def find_brown_space(frame, lower_bound, upper_bound):
+    
+    lower = np.array([12, 35, 30], np.uint8)
+    upper = np.array([18, 255, 255], np.uint8)
+    mask = mask_color(frame, lower, upper)
+    contours, _ = cv2.findContours(
+        mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for c in contours:
+        area = cv2.contourArea(c) 
+        if area > lower_bound and area < upper_bound:
+          return [c]     
+          
+    return contours
+
+def near_brown_space(box, bs, epsilon):
+    bs_cent = [bs[0] + bs[2]/2, bs[1] + bs[3]/2]
+    box_cent = [box[0] + box[2]/2, box[1] + box[3]/2]    
+    dist = ((bs_cent[0] - box_cent[0])**2 + (bs_cent[1] - box_cent[1])**2)**0.5
+
+    if dist < epsilon:
+        return True
+    return False
+
+def filter_for_house(frame, mask, lower_bound, upper_bound, epsilon):
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3,3)))    
+    mask = cv2.dilate(mask,np.ones((3,3)))
+    
+    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours_filtered = []
+    brown_space_box = cnt_to_cvbox(find_brown_space(frame, 400000, 700000)[0])
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        box = cnt_to_cvbox(cnt)
+        
+        if area > lower_bound and area < upper_bound and near_brown_space(box, brown_space_box, epsilon):
+            contours_filtered.append(cnt)
+        
+    return contours_filtered, mask
+
+def find_houses(frame, CALIB_CROP, MIN_AREA, MAX_AREA, EPSILON):
+    min_h, max_h = thresholds_for_crop(CALIB_CROP)   
+
+    lower_col = np.array(min_h, np.uint8)
+    upper_col = np.array(max_h, np.uint8)
+    mask = mask_color(frame, lower_col ,upper_col)
+    all_houses_contours, mask2_ = filter_for_house(frame, mask, MIN_AREA, MAX_AREA, EPSILON)
+    
+    return all_houses_contours
+
+def draw_houses_frame(frame, houses):
+    new_frame = draw_rectangle_from_contours(frame, houses)
+    cv2.putText(new_frame, "h: " + f"{len(houses)}", (10, 100),
+                cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 255), 2, cv2.LINE_AA)
+    return new_frame
