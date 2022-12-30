@@ -59,6 +59,9 @@ def draw_rectangle_from_contours(source_img,contours):
         cv2.drawContours(drawing, [box], 0, (0, 0, 255), 2)
     return drawing
 
+def distance_between_boxes(box1,box2):
+    return (box1[0] + box1[2]/2 - box2[0] - box1[2]/2)**2 + (box1[1] + box1[3]/2 - box2[1] - box1[3]/2)**2
+
 # DETECTION METHODS
 
 def mask_color(frame,lower,upper):
