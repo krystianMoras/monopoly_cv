@@ -59,6 +59,9 @@ def draw_rectangle_from_contours(source_img,contours):
         cv2.drawContours(drawing, [box], 0, (0, 0, 255), 2)
     return drawing
 
+def distance_between_boxes(box1,box2):
+    return (box1[0] + box1[2]/2 - box2[0] - box1[2]/2)**2 + (box1[1] + box1[3]/2 - box2[1] - box1[3]/2)**2
+
 # DETECTION METHODS
 
 def mask_color(frame,lower,upper):
@@ -98,10 +101,10 @@ def cnt_to_cvbox(cnt):
 # COUNTERS
 
 def filter_for_counter(mask, lower_bound, upper_bound):
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5,5)))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((7,7)))
     
-    mask = cv2.erode(mask,np.ones((5,5)))
-    mask = cv2.dilate(mask,np.ones((5,5)))
+    mask = cv2.erode(mask,np.ones((7,7)))
+    mask = cv2.dilate(mask,np.ones((7,7)))
     # for 1080p 7,7 worked okay, for 480p we tried 5,5 3,3 3,3 
     # imshow(mask)
     contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -167,6 +170,22 @@ def get_player_box(frame, color_crop, lower_size, upper_size, inv=0, approx=0):
     
     return final_box, counter_crop
 
+def check_if_counter_moved(frame, last_box, new_box, MOVE_EPSILON, STABLE_EPSILON_C, STABLE_PERIOD_C, stable_counter_c, moving):
+    distance = distance_between_boxes(last_box, new_box)
+    if distance > MOVE_EPSILON:
+        moving = True
+    if distance < STABLE_EPSILON_C and moving:
+        stable_counter_c +=1
+    else:
+        stable_counter_c = 0
+    if stable_counter_c >= STABLE_PERIOD_C:
+        moving = False
+    
+    if moving:
+        cv2.putText(frame, "MOVING", (1100, 300),
+            cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 255), 2, cv2.LINE_AA)
+    return frame, moving, stable_counter_c
+
 # HOUSES AND BOARD
 
 def find_brown_space(frame, lower_bound, upper_bound):
@@ -220,6 +239,23 @@ def find_houses(frame, CALIB_CROP, MIN_AREA, MAX_AREA, EPSILON):
 
 def draw_houses_frame(frame, houses):
     new_frame = draw_rectangle_from_contours(frame, houses)
-    cv2.putText(new_frame, "h: " + f"{len(houses)}", (10, 100),
+    cv2.putText(new_frame, "est. #houses: " + f"{len(houses)}", (1100, 100),
                 cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 255), 2, cv2.LINE_AA)
     return new_frame
+
+def check_if_house_placed(frame, num_of_houses, houses_counter, STABLE_PERIOD_H, stable_counter_h, placing, add_house):
+    if num_of_houses > houses_counter:
+        placing = True
+    if num_of_houses >= houses_counter and placing and num_of_houses > 0:
+        stable_counter_h +=1
+    else:
+        stable_counter_h = 0
+        placing = False
+    if stable_counter_h >= STABLE_PERIOD_H:
+        cv2.putText(frame, "HOUSE PLACED", (1100, 500),
+            cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 255), 2, cv2.LINE_AA)
+        houses_counter = num_of_houses
+        placing = False
+        # EVENT OF PLACING A HOUSE
+    
+    return frame, placing, stable_counter_h, houses_counter, add_house
