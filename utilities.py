@@ -170,6 +170,22 @@ def get_player_box(frame, color_crop, lower_size, upper_size, inv=0, approx=0):
     
     return final_box, counter_crop
 
+def check_if_counter_moved(frame, last_box, new_box, MOVE_EPSILON, STABLE_EPSILON_C, STABLE_PERIOD_C, stable_counter_c, moving):
+    distance = distance_between_boxes(last_box, new_box)
+    if distance > MOVE_EPSILON:
+        moving = True
+    if distance < STABLE_EPSILON_C and moving:
+        stable_counter_c +=1
+    else:
+        stable_counter_c = 0
+    if stable_counter_c >= STABLE_PERIOD_C:
+        moving = False
+    
+    if moving:
+        cv2.putText(frame, "MOVING", (1100, 300),
+            cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 255), 2, cv2.LINE_AA)
+    return frame, moving, stable_counter_c
+
 # HOUSES AND BOARD
 
 def find_brown_space(frame, lower_bound, upper_bound):
@@ -223,6 +239,23 @@ def find_houses(frame, CALIB_CROP, MIN_AREA, MAX_AREA, EPSILON):
 
 def draw_houses_frame(frame, houses):
     new_frame = draw_rectangle_from_contours(frame, houses)
-    cv2.putText(new_frame, "h: " + f"{len(houses)}", (10, 100),
+    cv2.putText(new_frame, "est. #houses: " + f"{len(houses)}", (1100, 100),
                 cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 255), 2, cv2.LINE_AA)
     return new_frame
+
+def check_if_house_placed(frame, num_of_houses, houses_counter, STABLE_PERIOD_H, stable_counter_h, placing):
+    if num_of_houses > houses_counter:
+        placing = True
+    if num_of_houses >= houses_counter and placing and num_of_houses > 0:
+        stable_counter_h +=1
+    else:
+        stable_counter_h = 0
+        placing = False
+    if stable_counter_h >= STABLE_PERIOD_H:
+        cv2.putText(frame, "HOUSE PLACED", (1100, 500),
+            cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 255), 2, cv2.LINE_AA)
+        houses_counter = num_of_houses
+        placing = False
+        # EVENT OF PLACING A HOUSE
+    
+    return frame, placing, stable_counter_h, houses_counter
