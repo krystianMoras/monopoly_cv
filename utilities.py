@@ -101,10 +101,10 @@ def cnt_to_cvbox(cnt):
 # COUNTERS
 
 def filter_for_counter(mask, lower_bound, upper_bound):
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5,5)))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((7,7)))
     
-    mask = cv2.erode(mask,np.ones((5,5)))
-    mask = cv2.dilate(mask,np.ones((5,5)))
+    mask = cv2.erode(mask,np.ones((7,7)))
+    mask = cv2.dilate(mask,np.ones((7,7)))
     # for 1080p 7,7 worked okay, for 480p we tried 5,5 3,3 3,3 
     # imshow(mask)
     contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
