@@ -243,7 +243,7 @@ def draw_houses_frame(frame, houses):
                 cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 255), 2, cv2.LINE_AA)
     return new_frame
 
-def check_if_house_placed(frame, num_of_houses, houses_counter, STABLE_PERIOD_H, stable_counter_h, placing):
+def check_if_house_placed(frame, num_of_houses, houses_counter, STABLE_PERIOD_H, stable_counter_h, placing, add_house):
     if num_of_houses > houses_counter:
         placing = True
     if num_of_houses >= houses_counter and placing and num_of_houses > 0:
@@ -258,4 +258,4 @@ def check_if_house_placed(frame, num_of_houses, houses_counter, STABLE_PERIOD_H,
         placing = False
         # EVENT OF PLACING A HOUSE
     
-    return frame, placing, stable_counter_h, houses_counter
+    return frame, placing, stable_counter_h, houses_counter, add_house
